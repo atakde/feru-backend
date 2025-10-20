@@ -1,0 +1,210 @@
+const { v4: uuidv4 } = require("uuid");
+const { run } = require("../lighthouse-runner");
+const pool = require("../db");
+
+const getResultsById = async (req, res) => {
+  const { id } = req.params;
+  const [rows] = await pool.execute(
+    "SELECT * FROM lighthouse_job WHERE id = ? LIMIT 1",
+    [id]
+  );
+
+  if (rows.length === 0) {
+    return res.status(404).json({ message: "Lighthouse job not found" });
+  }
+
+  const job = rows[0];
+  const currentUser = req.user;
+  if (job.user_id !== currentUser.id) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  // Fetch associated results
+  const [resultRows] = await pool.execute(
+    "SELECT * FROM lighthouse_result WHERE job_id = ?",
+    [id]
+  );
+
+  if (resultRows.length === 0) {
+    return res.status(404).json({ message: "No results found for this job" });
+  }
+
+  const results = resultRows.map((result) => ({
+    id: result.id,
+    region: result.region,
+    status: result.status,
+    created_at: result.created_at,
+    s3_report_url: result.s3_report_url,
+    metrics: {
+      lcp: result.lcp,
+      fcp: result.fcp,
+      cls: result.cls,
+      tbt: result.tbt,
+      tti: result.tti,
+      ttfb: result.ttfb,
+      performance_score: result.performance_score
+    },
+  }));
+
+  return res.status(200).json({
+    status: job.status,
+    url: job.url,
+    device: job.device,
+    ip: job.ip,
+    username: job.username,
+    created_at: job.created_at,
+    completed_at: job.completed_at,
+    results
+  });
+};
+
+const runNewAudit = async (req, res) => {
+  const { url, device, region } = req.body;
+
+  if (!url) {
+    res.status(400).json({ message: "URL is required" });
+  }
+
+  if (!device) {
+    res.status(400).json({ message: "Device is required" });
+  }
+
+  if (!region) {
+    res.status(400).json({ message: "Region is required" });
+  }
+
+  const parsedRegions = region.split(',').map(r => r.trim());
+  const availableRegions = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1', 'eu-central-1'];
+  if (!parsedRegions.every(r => availableRegions.includes(r))) {
+    res.status(400).json({ message: "Invalid region(s) provided" });
+  }
+
+  const urlWithProtocol = url.startsWith('https') ? url : `https://${url}`;
+  const ip = req?.ip;
+  const id = uuidv4();
+
+  // TODO :: user_id ?
+
+  // Insert to lighthouse_job
+  const result = await pool.execute(
+    `INSERT INTO lighthouse_job (id, url, device, regions, ip, status) 
+     VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+    [
+      id,
+      urlWithProtocol,
+      device,
+      JSON.stringify(parsedRegions),
+      ip
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    return res.status(500).json({ message: "Failed to create lighthouse job" });
+  }
+
+  let hasErrorInLHService = false;
+  for (const eachRegion of parsedRegions) {
+    const taskResult = await run({
+      traceId: id,
+      url: urlWithProtocol,
+      device,
+      region: eachRegion
+    });
+
+    console.log("Task Result:", taskResult);
+    if (!taskResult || !taskResult.taskArn) {
+      hasErrorInLHService = true;
+      break;
+    }
+  }
+
+  if (hasErrorInLHService) {
+    return res.status(500).json({ message: "Failed to start lighthouse audit in one or more regions" });
+  }
+
+  res.status(201).json({
+    content: { id }
+  });
+};
+
+const updateResults = async (req, res) => {
+  const secret = req.headers['x-lh-secret'];
+  const expectedSecret = process.env.LH_WEBHOOK_SECRET;
+
+  if (secret !== expectedSecret) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const { id, region, status } = req.body;
+  if (!id || !region || !status) {
+    return res.status(400).json({ message: "id, region, and status are required" });
+  }
+
+  switch (status) {
+    case 'COMPLETED':
+      const {
+        s3_report_url,
+        s3_metrics_json_url,
+        fcp,
+        lcp,
+        cls,
+        tbt,
+        tti,
+        ttfb,
+        performance_score
+      } = req.body;
+
+      await pool.execute(
+        `UPDATE lighthouse_job 
+         SET status = 'COMPLETED',
+         completed_at = NOW(),
+         s3_report_url = ?
+         s3_metrics_json_url = ?,
+         fcp = ?,
+         lcp = ?,
+         cls = ?,
+         tbt = ?,
+         tti = ?,
+         ttfb = ?,
+         performance_score = ?
+         WHERE id = ?`,
+        [
+          s3_report_url,
+          s3_metrics_json_url,
+          fcp,
+          lcp,
+          cls,
+          tbt,
+          tti,
+          ttfb,
+          performance_score,
+          id
+        ]
+      );
+      break;
+    case 'FAILED':
+      // TODO :: error message?
+      await pool.execute(
+        `UPDATE lighthouse_job 
+         SET status = 'FAILED',
+         completed_at = NOW()
+         WHERE id = ?`,
+        [id]
+      );
+      break;
+    case 'RUNNING':
+      await pool.execute(
+        `UPDATE lighthouse_job 
+         SET status = 'RUNNING'
+         WHERE id = ?`,
+        [id]
+      );
+      break;
+    default:
+      return res.status(400).json({ message: "Invalid status value" });
+  }
+
+  res.json({ message: "Lighthouse job updated successfully" });
+};
+
+module.exports = { getResultsById, runNewAudit, updateResults };
