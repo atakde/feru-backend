@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const pool = require('../db');
 
-const me = (req, res) => {  
+const me = (req, res) => {
   const bearer = req.headers.authorization;
   if (!bearer || !bearer.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or invalid authorization header" });
@@ -42,7 +42,8 @@ const refresh = async (req, res) => {
 
     const user = rows[0];
     const newAccessToken = generateAccessToken({ id: user.id, email: user.email, name: user.name });
-    return res.json({ accessToken: newAccessToken });
+    const newRefreshToken = generateRefreshToken({ id: user.id, email: user.email, name: user.name });
+    return res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired refresh token" });
   }
@@ -78,12 +79,10 @@ const register = async (req, res) => {
     const refreshToken = generateRefreshToken(user);
 
     return res.json({
-      content: {
-        user,
-        tokens: {
-          accessToken,
-          refreshToken
-        }
+      user,
+      tokens: {
+        accessToken,
+        refreshToken
       }
     });
   } catch (err) {
@@ -120,17 +119,15 @@ const login = async (req, res) => {
     const refreshToken = generateRefreshToken(user);
 
     return res.json({
-      content: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          user_type: user.user_type
-        },
-        tokens: {
-          accessToken,
-          refreshToken
-        }
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        user_type: user.user_type
+      },
+      tokens: {
+        accessToken,
+        refreshToken
       }
     });
   } catch (err) {

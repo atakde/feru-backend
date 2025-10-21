@@ -1,24 +1,24 @@
 const jwt = require("jsonwebtoken");
-const { SECRET, REFRESH_SECRET } = process.env;
+const { JWT_SECRET, JWT_REFRESH_SECRET } = process.env;
 
 const generateAccessToken = user => {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name },
-    SECRET,
+    JWT_SECRET,
     { expiresIn: "60m" }
   );
 }
 
 const generateRefreshToken = user => {
-  return jwt.sign({ id: user.id }, REFRESH_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
 }
 
 const verifyAccessToken = token => {
-  return jwt.verify(token, SECRET);
+  return jwt.verify(token, JWT_SECRET);
 }
 
 const verifyRefreshToken = token => {
-  return jwt.verify(token, REFRESH_SECRET);
+  return jwt.verify(token, JWT_REFRESH_SECRET);
 }
 
 module.exports = {

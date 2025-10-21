@@ -123,7 +123,7 @@ const runNewAudit = async (req, res) => {
   }
 
   res.status(201).json({
-    content: { id }
+    id
   });
 };
 
