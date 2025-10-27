@@ -8,7 +8,7 @@ const lighthouseRoutes = require("./routes/lighthouse");
 const app = express();
 app.use(express.json());
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://feru.app'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'https://feru.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true

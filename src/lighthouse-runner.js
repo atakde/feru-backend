@@ -19,10 +19,10 @@ const REGION_CONFIGS = {
   },
 };
 
-async function run({ traceId, url, region = DEFAULT_REGION, memory = DEFAULT_MEMORY, cpu = DEFAULT_CPU, device }) {
+async function run({ resultID, url, region = DEFAULT_REGION, memory = DEFAULT_MEMORY, cpu = DEFAULT_CPU, device }) {
   try {
-    if (!traceId) {
-      throw new Error('Trace ID is required');
+    if (!resultID) {
+      throw new Error('Result ID is required');
     }
 
     if (!device || (device !== 'desktop' && device !== 'mobile')) {
@@ -76,8 +76,8 @@ async function run({ traceId, url, region = DEFAULT_REGION, memory = DEFAULT_MEM
                 value: region,
               },
               {
-                name: 'TRACE_ID',
-                value: traceId,
+                name: 'RESULT_ID',
+                value: resultID,
               },
               {
                 name: 'DEVICE',

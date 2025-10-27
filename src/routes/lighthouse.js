@@ -6,6 +6,6 @@ const authenticate = require("../middlewares/authMiddleware");
 // Protected route
 router.post("/", authenticate, runNewAudit);
 router.get("/:id", authenticate, getResultsById);
-router.post("/system/webhook/:id", updateResults);
+router.post("/system/webhook", updateResults);
 
 module.exports = router;

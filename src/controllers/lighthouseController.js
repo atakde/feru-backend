@@ -102,10 +102,22 @@ const runNewAudit = async (req, res) => {
     return res.status(500).json({ message: "Failed to create lighthouse job" });
   }
 
+  // Pre-create result rows for each region
+  const resultRows = parsedRegions.map(r => [uuidv4(), id, r, 'PENDING']);
+  const insertResults = await pool.query(
+    `INSERT INTO lighthouse_result (id, job_id, region, status) VALUES ?`,
+    [resultRows]
+  );
+
+  if (insertResults.affectedRows === 0) {
+    return res.status(500).json({ message: "Failed to create lighthouse result entries" });
+  }
+
   let hasErrorInLHService = false;
   for (const eachRegion of parsedRegions) {
+    let resultID = resultRows.find(r => r[2] === eachRegion)[0];
     const taskResult = await run({
-      traceId: id,
+      resultID,
       url: urlWithProtocol,
       device,
       region: eachRegion
@@ -113,18 +125,67 @@ const runNewAudit = async (req, res) => {
 
     console.log("Task Result:", taskResult);
     if (!taskResult || !taskResult.taskArn) {
+      console.error("Failed to start lighthouse audit:", taskResult);
+      await pool.execute(
+        `UPDATE lighthouse_result 
+         SET status = 'FAILED', 
+         completed_at = NOW() 
+         WHERE id = ?`,
+        [resultID]
+      );
       hasErrorInLHService = true;
       break;
     }
   }
 
   if (hasErrorInLHService) {
+    await pool.execute(
+      `UPDATE lighthouse_job 
+       SET status = 'FAILED', 
+       completed_at = NOW() 
+       WHERE id = ?`,
+      [id]
+    );
     return res.status(500).json({ message: "Failed to start lighthouse audit in one or more regions" });
   }
 
   res.status(201).json({
     id
   });
+};
+
+const syncJobStatuses = async jobId => {
+  const [rows] = await pool.execute(
+    "SELECT status FROM lighthouse_result WHERE job_id = ?",
+    [jobId]
+  );
+
+  if (rows.every(r => r.status === 'COMPLETED')) {
+    await pool.execute(
+      `UPDATE lighthouse_job 
+       SET status = 'COMPLETED', 
+       completed_at = NOW() 
+       WHERE id = ?`,
+      [jobId]
+    );
+  } else if (rows.some(r => r.status === 'RUNNING')) {
+    await pool.execute(
+      `UPDATE lighthouse_job 
+       SET status = 'RUNNING' 
+       WHERE id = ?`,
+      [jobId]
+    );
+  } else if (rows.every(r => r.status === 'FAILED')) {
+    await pool.execute(
+      `UPDATE lighthouse_job 
+       SET status = 'FAILED', 
+       completed_at = NOW() 
+       WHERE id = ?`,
+      [jobId]
+    );
+  } else {
+    // TODO:: what happens if some failed and some completed?
+  }
 };
 
 const updateResults = async (req, res) => {
@@ -135,10 +196,22 @@ const updateResults = async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  const { id, region, status } = req.body;
-  if (!id || !region || !status) {
-    return res.status(400).json({ message: "id, region, and status are required" });
+  const { result_id, region, status } = req.body;
+  if (!result_id || !region || !status) {
+    return res.status(400).json({ message: "result_id, region, and status are required" });
   }
+
+  const [resultRows] = await pool.execute(
+    "SELECT job_id FROM lighthouse_result WHERE id = ? AND region = ? LIMIT 1",
+    [result_id, region]
+  );
+
+  if (resultRows.length === 0) {
+    return res.status(404).json({ message: "Lighthouse result not found for the given region" });
+  }
+
+  const { job_id } = resultRows[0];
+  const resultId = result_id;
 
   switch (status) {
     case 'COMPLETED':
@@ -155,10 +228,10 @@ const updateResults = async (req, res) => {
       } = req.body;
 
       await pool.execute(
-        `UPDATE lighthouse_job 
+        `UPDATE lighthouse_result
          SET status = 'COMPLETED',
          completed_at = NOW(),
-         s3_report_url = ?
+         s3_report_url = ?,
          s3_metrics_json_url = ?,
          fcp = ?,
          lcp = ?,
@@ -178,27 +251,33 @@ const updateResults = async (req, res) => {
           tti,
           ttfb,
           performance_score,
-          id
+          resultId
         ]
       );
+
+      await syncJobStatuses(job_id);
       break;
     case 'FAILED':
       // TODO :: error message?
       await pool.execute(
-        `UPDATE lighthouse_job 
+        `UPDATE lighthouse_result 
          SET status = 'FAILED',
          completed_at = NOW()
          WHERE id = ?`,
-        [id]
+        [resultId]
       );
+
+      await syncJobStatuses(job_id);
       break;
     case 'RUNNING':
       await pool.execute(
-        `UPDATE lighthouse_job 
+        `UPDATE lighthouse_result 
          SET status = 'RUNNING'
-         WHERE id = ?`,
-        [id]
+         WHERE job_id = ? AND region = ?`,
+        [job_id, region]
       );
+
+      await syncJobStatuses(job_id);
       break;
     default:
       return res.status(400).json({ message: "Invalid status value" });
