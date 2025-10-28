@@ -14,10 +14,12 @@ const getResultsById = async (req, res) => {
   }
 
   const job = rows[0];
+  /*
   const currentUser = req.user;
   if (job.user_id !== currentUser.id) {
     return res.status(403).json({ message: "Forbidden" });
   }
+  */
 
   // Fetch associated results
   const [resultRows] = await pool.execute(
