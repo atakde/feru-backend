@@ -196,18 +196,18 @@ const updateResults = async (req, res) => {
     return res.status(403).json({ message: "Forbidden" });
   }
 
-  const { result_id, region, status } = req.body;
-  if (!result_id || !region || !status) {
-    return res.status(400).json({ message: "result_id, region, and status are required" });
+  const { result_id, status, region } = req.body;
+  if (!result_id || !status) {
+    return res.status(400).json({ message: "result_id and status are required" });
   }
 
   const [resultRows] = await pool.execute(
-    "SELECT job_id FROM lighthouse_result WHERE id = ? AND region = ? LIMIT 1",
-    [result_id, region]
+    "SELECT job_id FROM lighthouse_result WHERE id = ? LIMIT 1",
+    [result_id]
   );
 
   if (resultRows.length === 0) {
-    return res.status(404).json({ message: "Lighthouse result not found for the given region" });
+    return res.status(404).json({ message: "Lighthouse result not found for the given result_id" });
   }
 
   const { job_id } = resultRows[0];
