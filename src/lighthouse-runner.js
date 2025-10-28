@@ -10,12 +10,12 @@ const REGION_CONFIGS = {
   'us-east-1': {
     clusterName: process.env.ECS_CLUSTER_NAME_US_EAST_1,
     taskDefinition: process.env.ECS_TASK_DEFINITION_US_EAST_1,
-    subnetID: process.env.AWS_SUBNET_ID_US_EAST_1,
+    subnetIDs: process.env.AWS_SUBNET_IDS_US_EAST_1.split(','),
   },
   'eu-central-1': {
     clusterName: process.env.ECS_CLUSTER_NAME_EU_CENTRAL_1,
     taskDefinition: process.env.ECS_TASK_DEFINITION_EU_CENTRAL_1,
-    subnetID: process.env.AWS_SUBNET_ID_EU_CENTRAL_1,
+    subnetIDs: process.env.AWS_SUBNET_IDS_EU_CENTRAL_1.split(','),
   },
 };
 
@@ -50,15 +50,12 @@ async function run({ resultID, url, region = DEFAULT_REGION, memory = DEFAULT_ME
       cluster: REGION_CONFIGS[region].clusterName,
       taskDefinition: REGION_CONFIGS[region].taskDefinition,
       capacityProviderStrategy: [
-        {
-          capacityProvider: 'FARGATE_SPOT', // use Spot
-          weight: 1,
-          base: 0
-        },
+        { capacityProvider: 'FARGATE_SPOT', weight: 1 },
+        { capacityProvider: 'FARGATE', weight: 1 }
       ],
       networkConfiguration: {
         awsvpcConfiguration: {
-          subnets: [REGION_CONFIGS[region].subnetID],
+          subnets: REGION_CONFIGS[region].subnetIDs,
           assignPublicIp: 'ENABLED'
         }
       },
@@ -92,6 +89,12 @@ async function run({ resultID, url, region = DEFAULT_REGION, memory = DEFAULT_ME
     });
 
     const response = await ecsClient.send(command);
+    console.log('ECS RunTask response:', response);
+    const failures = response.failures || [];
+    if (failures.length > 0) {
+      const failureMessages = failures.map(f => f.reason).join('; ');
+      throw new Error(`Failed to run ECS task: ${failureMessages}`);
+    }
 
     return {
       success: true,
