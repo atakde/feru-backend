@@ -6,6 +6,7 @@ const authRoutes = require("./routes/auth");
 const lighthouseRoutes = require("./routes/lighthouse");
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:3001', 'https://feru.app'],
