@@ -26,6 +26,9 @@ dependencies:
   mysql2:
     specifier: ^3.15.2
     version: 3.15.2
+  swagger-ui-express:
+    specifier: ^5.0.1
+    version: 5.0.1(express@5.1.0)
   uuid:
     specifier: ^13.0.0
     version: 13.0.0
@@ -476,6 +479,11 @@ packages:
   /@aws/lambda-invoke-store@0.0.1:
     resolution: {integrity: sha512-ORHRQ2tmvnBXc8t/X9Z8IcSbBA4xTLKuN873FopzklHMeqBst7YG0d+AX97inkvDX+NChYtSr+qGfcqGFaI8Zw==}
     engines: {node: '>=18.0.0'}
+    dev: false
+
+  /@scarf/scarf@1.4.0:
+    resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
+    requiresBuild: true
     dev: false
 
   /@smithy/abort-controller@4.2.3:
@@ -1709,6 +1717,22 @@ packages:
     engines: {node: '>=4'}
     dependencies:
       has-flag: 3.0.0
+
+  /swagger-ui-dist@5.30.0:
+    resolution: {integrity: sha512-BoiDSeT9PCtHfDYMgX5UpB/qTQy44UoSFRmzHqvhGfgxzEVPHxIW78a+HMLUIHnSFu3z63wjtbq6L6+Rto20Rw==}
+    dependencies:
+      '@scarf/scarf': 1.4.0
+    dev: false
+
+  /swagger-ui-express@5.0.1(express@5.1.0):
+    resolution: {integrity: sha512-SrNU3RiBGTLLmFU8GIJdOdanJTl4TOmT27tt3bWWHppqYmAZ6IDuEuBvMU6nZq0zLEe6b/1rACXCgLZqO6ZfrA==}
+    engines: {node: '>= v0.10.32'}
+    peerDependencies:
+      express: '>=4.0.0 || >=5.0.0-beta'
+    dependencies:
+      express: 5.1.0
+      swagger-ui-dist: 5.30.0
+    dev: false
 
   /to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}

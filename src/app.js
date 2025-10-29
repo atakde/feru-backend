@@ -6,6 +6,8 @@ const authenticate = require('./middlewares/authMiddleware');
 const authRoutes = require("./routes/auth");
 const lighthouseRoutes = require("./routes/lighthouse");
 const monitorRoutes = require("./routes/monitoring");
+const swaggerUi = require('swagger-ui-express');
+const openapiSpec = require('./swagger');
 
 const app = express();
 app.set('trust proxy', true);
@@ -17,6 +19,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+// Swagger docs
+app.use('/openapi.json', (req, res) => res.json(openapiSpec));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 // Routes
 app.use('/auth', authRoutes);
 app.use('/lighthouse', lighthouseRoutes);
