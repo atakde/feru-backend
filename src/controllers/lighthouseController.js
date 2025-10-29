@@ -74,6 +74,7 @@ const runNewAudit = async (req, res) => {
   if (!region) {
     res.status(400).json({ message: "Region is required" });
   }
+  const userID = req.user ? req.user.id : null;
 
   const parsedRegions = region.split(',').map(r => r.trim());
   const availableRegions = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1', 'eu-central-1'];
@@ -84,19 +85,17 @@ const runNewAudit = async (req, res) => {
   const urlWithProtocol = url.startsWith('https') ? url : `https://${url}`;
   const ip = req?.ip;
   const id = uuidv4();
-
-  // TODO :: user_id ?
-
   // Insert to lighthouse_job
   const result = await pool.execute(
-    `INSERT INTO lighthouse_job (id, url, device, regions, ip, status) 
-     VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+    `INSERT INTO lighthouse_job (id, url, device, regions, ip, status, user_id) 
+     VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`,
     [
       id,
       urlWithProtocol,
       device,
       JSON.stringify(parsedRegions),
-      ip
+      ip,
+      userID
     ]
   );
 
@@ -288,4 +287,56 @@ const updateResults = async (req, res) => {
   res.json({ message: "Lighthouse job updated successfully" });
 };
 
-module.exports = { getResultsById, runNewAudit, updateResults };
+const getAllTestsByUser = async (req, res) => {
+  const userId = req.user.id;
+
+  const [jobs] = await pool.execute(
+    `SELECT * FROM lighthouse_job WHERE user_id = ? ORDER BY created_at DESC`,
+    [userId]
+  );
+
+  const jobIds = jobs.map(j => j.id);
+  let resultsMap = {};
+  if (jobIds.length > 0) {
+    const [results] = await pool.execute(
+      `SELECT * FROM lighthouse_result WHERE job_id IN (${jobIds.map(() => '?').join(',')})`,
+      jobIds
+    );
+    
+    resultsMap = results.reduce((acc, r) => {
+      if (!acc[r.job_id]) acc[r.job_id] = [];
+      acc[r.job_id].push({
+        id: r.id,
+        region: r.region,
+        status: r.status,
+        created_at: r.created_at,
+        s3_report_url: r.s3_report_url,
+        metrics: {
+          lcp: r.lcp,
+          fcp: r.fcp,
+          cls: r.cls,
+          tbt: r.tbt,
+          tti: r.tti,
+          ttfb: r.ttfb,
+          performance_score: r.performance_score
+        }
+      });
+      return acc;
+    }, {});
+  }
+  const response = jobs.map(j => ({
+    id: j.id,
+    url: j.url,
+    device: j.device,
+    regions: j.regions,
+    ip: j.ip,
+    status: j.status,
+    created_at: j.created_at,
+    completed_at: j.completed_at,
+    results: resultsMap[j.id] || []
+  }));
+
+  res.json(response ?? []);
+};
+
+module.exports = { getResultsById, runNewAudit, updateResults, getAllTestsByUser };

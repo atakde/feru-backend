@@ -3,23 +3,19 @@ const { verifyAccessToken } = require("../auth");
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Missing authorization header' });
-  }
-
-  // Check for JWT
-  if (authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     try {
       const decoded = verifyAccessToken(token);
-      req.user = { ...decoded, type: 'jwt' };
-      return next();
+      req.user = { ...decoded, type: "jwt" };
     } catch (err) {
-      return res.status(401).json({ error: err });
+      req.user = null;
     }
+  } else {
+    req.user = null;
   }
 
-  return res.status(401).json({ error: 'Invalid authorization format' });
+  next();
 };
 
 module.exports = authenticate;

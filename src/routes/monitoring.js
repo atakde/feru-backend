@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { createMonitoring, listMonitoringEntries, deleteMonitoringEntry, triggerRun } = require('../controllers/monitoringController');
-const authMiddleware = require('../middlewares/authMiddleware');
+const requireAuthMw = require('../middlewares/requireAuthMiddleware');
 
-router.use(authMiddleware);
+router.use(requireAuthMw);
 
 router.post('/', createMonitoring);
 router.get('/', listMonitoringEntries);
