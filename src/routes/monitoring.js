@@ -1,0 +1,13 @@
+const express = require('express');
+const router = express.Router();
+const { createMonitoring, listMonitoringEntries, deleteMonitoringEntry, triggerRun } = require('../controllers/monitoringController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.use(authMiddleware);
+
+router.post('/', createMonitoring);
+router.get('/', listMonitoringEntries);
+router.delete('/:id', deleteMonitoringEntry);
+// router.post('/:id/run', triggerRun);
+
+module.exports = router;
