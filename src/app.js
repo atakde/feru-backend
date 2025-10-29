@@ -4,6 +4,7 @@ const errorMiddleware = require('./middlewares/errorMiddleware');
 const notFoundMiddleware = require('./middlewares/notFoundMiddleware');
 const authRoutes = require("./routes/auth");
 const lighthouseRoutes = require("./routes/lighthouse");
+const monitorRoutes = require("./routes/monitoring");
 
 const app = express();
 app.set('trust proxy', true);
@@ -17,6 +18,7 @@ app.use(cors({
 // Routes
 app.use('/auth', authRoutes);
 app.use('/lighthouse', lighthouseRoutes);
+app.use('/monitoring', monitorRoutes);
 
 // Middlewares
 app.use(notFoundMiddleware);
